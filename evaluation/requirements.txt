@@ -1,0 +1,28 @@
+# Core numeric stack
+numpy<2.4.0
+pandas==2.3.3
+pyarrow==22.0.0
+scikit-learn==1.6.1
+scipy==1.16.3
+
+# Visualization
+matplotlib==3.10.8
+
+# Tree/boosting baselines
+lightgbm==4.6.0
+catboost==1.2.8
+xgboost==3.1.2
+
+# Neural baselines
+torch
+tabm==0.0.3
+xrfm==0.4.3
+
+# TabPFN
+tabpfn==6.2.1
+tabpfn-client @ git+https://github.com/PriorLabs/tabpfn-client.git@d46a9bdb1c6ea82cb3f24a6f544f14fcd2e55672
+
+# Utilities
+tqdm==4.67.1
+graphviz==0.21
+plotly==6.5.0
