@@ -1,13 +1,23 @@
-# TabularMath Benchmark
+# TabularMath: Evaluating Computational Extrapolation in Tabular Learning via Program-Verified Synthesis
 
-Math-focused tabular regression benchmark derived from GSM8K and AIME problems.  
-This repository now separates three concerns so a new reader can jump in easily:
+[Paper and version history](https://arxiv.org/abs/2602.02523)
+
+TabularMath evaluates whether predictors recover a computation's answers as
+the queried output range expands. The benchmark contains 100 GSM8K and 14 AIME
+families, each with 2,048 rows labeled by an executable reference program.
+Random and upper-output-tail splits compare interpolation with computational
+extrapolation. Regression fit and rounded-answer accuracy measure complementary
+properties: tracking numerical scale and returning answers at unit-width
+resolution. Evaluation code retains `rounded_consistency` as the field name
+for rounded-answer accuracy.
+
+The repository separates three parts of the execution workflow:
 
 - **`curation/`** – code + documentation for rebuilding the numeric tables from the released augmentation JSONL files.
 - **`evaluation/`** – experiment drivers, manifests, and shared utilities.
-- **`artifacts/`** – generated data (parquet tables) and the publication-ready outputs (JSON reports, TSV summaries, plots, logs).
+- **`artifacts/datasets/`** – released benchmark tables (CSV and parquet).
 
-`docs/` carries human-readable summaries; everything else is code.
+Evaluation reports, plots, and logs are generated locally and ignored by Git.
 
 ## Directory layout
 ```
@@ -15,16 +25,13 @@ tabularmath/
 ├─ README.md
 ├─ artifacts/
 │  ├─ datasets/          # Sanitized GSM8K + AIME tables (CSV + parquet)
-│  ├─ reports/           # Raw model JSON + aggregated TSVs
-│  ├─ plots_png/         # Rounded-consistency curves
-│  └─ logs/              # Run logs, sanitization logs, matplotlib cache
+│  └─ README.md          # Data and local-output paths
 ├─ curation/             # Data curation pipeline (inputs, scripts, Makefile, requirements)
 ├─ evaluation/           # Experiment code (requirements, manifests, scripts, helpers)
-└─ docs/                 # Publication notes
 ```
 
-`artifacts/` is the shared output staging area.  
-For convenience the repository ships with the fully populated release artefacts, but you can delete the directory at any point and regenerate it by following the curation + evaluation steps below.
+The release includes the benchmark tables and their curation inputs. Keep
+`artifacts/datasets/`; evaluation scripts create their output directories as needed.
 
 ## Workflow overview
 1. **Curation** (`curation/`): run the augmentation pipeline to turn the raw GSM8K/AIME problems into per-problem tables, then copy the results into `artifacts/datasets/` (see `curation/README.md` for full instructions).
@@ -46,15 +53,16 @@ For convenience the repository ships with the fully populated release artefacts,
 
 Run everything from the repo root so relative paths match the commands below.
 
-## Artifacts (data + reports)
-Out of the box these directories already contain the published results. Re-running the steps below will regenerate the same layout:
+## Data and local outputs
+The repository distributes inputs and execution code. Running an evaluation creates:
 - Sanitized GSM8K and AIME tables live at `artifacts/datasets/`. Raw 2,048-row tables are bundled; regenerate normalized or alternative row-cap variants via `curation/` when needed.
 - Model reports land in `artifacts/reports/raw/` (one JSON per model/split/row-cap).
 - Aggregated TSVs + ranking tables live in `artifacts/reports/summaries/`.
 - Curves render to `artifacts/plots_png/`.
 - Run logs/sanitization logs go under `artifacts/logs/` (created automatically on first run).
 
-These folders are created automatically by the scripts, so you can safely delete `artifacts/` and rebuild everything from scratch whenever needed.
+The reports, plots, and logs directories can be removed after a run. The
+benchmark tables in `artifacts/datasets/` are inputs and should be retained.
 
 ## Evaluation quick start
 Use the smoke test (after curation has populated `artifacts/datasets/`) to confirm the toolchain before touching TabPFN credits:
@@ -68,9 +76,9 @@ python evaluation/scripts/eval_generic_regression.py \
   --report_json artifacts/reports/raw/smoke_random_forest.json
 ```
 
-ICL smoke test (uses the placeholder LLM response when `TABMATH_ICL_LLM_CLIENT` is unset):
+ICL smoke test (explicitly uses placeholder responses, without model calls):
 ```bash
-PYTHONPATH=evaluation \
+TABMATH_ICL_OFFLINE=1 PYTHONPATH=evaluation \
 python evaluation/scripts/eval_icl_llm.py \
   --manifest evaluation/data_manifests/tmp_dataset_smoke.txt \
   --rowcap 32 --random_split \
@@ -96,6 +104,13 @@ What it does for each split (`random`, `ood`) and row cap {32,64,128,256,512,102
 The driver auto-aggregates the TSVs and regenerates the rounded-consistency plots at the end.
 
 ### ICL hook reference
+The built-in OpenAI-compatible adapter uses `TABMATH_API_KEY`, `TABMATH_MODEL`,
+and optional `TABMATH_BASE_URL`. Set these variables and leave
+`TABMATH_ICL_OFFLINE` unset for real evaluation. Optional `TABMATH_PARAMS` is a
+JSON request-parameter object; teacher/student overrides are documented in
+`.env.example`. TabPFN uses its separate `PRIORLAB_API_KEY` credential.
+
+For a custom backend:
 1. Implement a small wrapper:
    ```python
    # my_llm.py
@@ -108,8 +123,8 @@ The driver auto-aggregates the TSVs and regenerates the rounded-consistency plot
    ```bash
    export TABMATH_ICL_LLM_CLIENT="my_llm:predict"
    ```
-3. Optional: set `TABMATH_ICL_PLACEHOLDER="0"` if you want a deterministic fallback string for dry runs.  
-   Without a hook, the driver returns `"<unknown>"`, which is fine for smoke tests but not for the published results.
+3. Offline smoke mode requires `TABMATH_ICL_OFFLINE=1` and an unset custom hook.
+   Its generated report is explicitly marked `offline_smoke`; it is not a model evaluation.
 
 ## Curation pipeline
 Everything needed to rebuild the parquet tables is under `curation/`. Follow `curation/README.md` for the exact commands, summarized here:

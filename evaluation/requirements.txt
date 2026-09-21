@@ -23,6 +23,7 @@ tabpfn==6.2.1
 tabpfn-client @ git+https://github.com/PriorLabs/tabpfn-client.git@d46a9bdb1c6ea82cb3f24a6f544f14fcd2e55672
 
 # Utilities
+requests>=2.31.0
 tqdm==4.67.1
 graphviz==0.21
 plotly==6.5.0

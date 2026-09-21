@@ -1,0 +1,18 @@
+# Local evaluation outputs; benchmark tables remain versioned.
+/artifacts/reports/
+/artifacts/logs/
+/artifacts/plots_png/
+/local_runs/
+/curation/tabular/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+*.egg-info/
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+.DS_Store
+Thumbs.db
+*.log

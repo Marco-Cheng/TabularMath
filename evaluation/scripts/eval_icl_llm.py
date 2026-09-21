@@ -3,10 +3,9 @@
 Evaluate LLM in-context learning baselines on tabular math datasets.
 
 Set TABMATH_ICL_LLM_CLIENT="module:function" to supply your own callable that
-accepts (prompt: str, logid: str) -> str. Without this environment variable the
-script falls back to a placeholder client that returns "<unknown>" so smoke
-tests can run offline. The helper `oss_llm_call` reproduces the original OSS
-deployment; configure it via TABMATH_ICL_LLM_CLIENT="scripts.eval_icl_llm:oss_llm_call".
+accepts (prompt: str, logid: str) -> str. Otherwise TABMATH_API_KEY and
+TABMATH_MODEL select the built-in compatible endpoint adapter. Set
+TABMATH_ICL_OFFLINE=1 only for an explicitly marked offline smoke run.
 """
 import argparse
 import importlib
@@ -34,6 +33,7 @@ for path in (EVAL_DIR, REPO_ROOT):
 from path_utils import MANIFESTS_DIR, RAW_REPORTS_DIR, REPORTS_DIR
 
 from data_utils import load_dataset
+from curation.augmentation.oracle_llm_io import student_llm_call
 
 
 def load_manifest(path: Path) -> List[Tuple[str, str]]:
@@ -80,13 +80,13 @@ def oss_llm_call(prompt: str, logid: str) -> Optional[str]:
         {"role": "system", "content": "You convert tabular regression prompts into numeric predictions."},
         {"role": "user", "content": prompt},
     ]
-    return _default_llm_call(messages, logid)
+    return student_llm_call(messages)
 
 
 def _load_llm_call() -> Callable[[str, str], Optional[str]]:
     hook = os.environ.get("TABMATH_ICL_LLM_CLIENT")
     if not hook:
-        return _default_llm_call
+        return _default_llm_call if os.environ.get("TABMATH_ICL_OFFLINE") == "1" else oss_llm_call
     module_name, func_name = hook.rsplit(":", 1)
     module = importlib.import_module(module_name)
     fn = getattr(module, func_name)
@@ -210,6 +210,7 @@ def main():
         log_path.parent.mkdir(parents=True, exist_ok=True)
 
     results = []
+    failures = []
     for name, path in entries:
         try:
             res, prompt, raw = evaluate_dataset(
@@ -231,14 +232,20 @@ def main():
                     lf.write(json.dumps(record, ensure_ascii=False) + "\n")
         except Exception as exc:
             print(f"[LLM][FAIL] {name}: {exc}")
+            failures.append({"dataset": name, "error": str(exc)})
 
     summary = {
         "split": "ood" if args.ood_split else "random",
         "rowcap": args.rowcap,
         "results": results,
+        "failures": failures,
+        "offline_smoke": os.environ.get("TABMATH_ICL_OFFLINE") == "1",
     }
+    Path(args.out).parent.mkdir(parents=True, exist_ok=True)
     Path(args.out).write_text(json.dumps(summary, indent=2))
     print(f"Saved results to {args.out}")
+    if failures:
+        raise SystemExit(1)
 
 if __name__ == "__main__":
     main()
